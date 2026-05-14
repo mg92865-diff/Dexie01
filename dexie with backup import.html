@@ -1,0 +1,403 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV Show Tracker (Local)</title>
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <style>
+        :root { --primary: #2196F3; --danger: #f44336; --success: #4CAF50; --bg: #eeeeee; --text: #212121; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            display: flex; 
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden; 
+        }
+
+
+        .container { 
+            background: white; 
+            width: 100%; 
+            max-width: 500px; 
+            display: flex;
+            flex-direction: column; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+        }
+
+
+        .header-box {
+            display: grid;
+            grid-template-columns: 1fr auto auto auto;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 2px solid var(--primary);
+            padding: 15px 20px;
+            background: white;
+            z-index: 10;
+        }
+        
+        h2 { margin: 0; color: var(--text); font-size: 1.1rem; }
+
+
+        #records-container {
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 0 10px;
+        }
+
+
+        .view { display: none; height: 100%; flex-direction: column; }
+        .active { display: flex; animation: fadeIn 0.2s; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+
+        .btn-small { padding: 8px 10px; font-size: 0.7rem; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        .btn-add-small { background: var(--primary); color: white; }
+        .btn-save-small { background: var(--success); color: white; }
+        .btn-delete-small { background: var(--danger); color: white; }
+        .btn-cancel-small { background: #757575; color: white; }
+        .btn-import { background: #9c27b0; color: white; }
+
+
+        .record-item { 
+            display: grid;
+            grid-template-columns: 1fr;
+            padding: 18px; 
+            border-bottom: 1px solid #ddd; 
+            cursor: pointer; 
+            font-size: 1.1rem;
+            align-items: center;
+        }
+
+
+        .input-area { padding: 20px; overflow-y: auto; padding-bottom: 80px; }
+        input, textarea, select { width: 100%; padding: 15px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; font-family: inherit; }
+        .label-hint { font-size: 0.8rem; color: #666; margin-bottom: -5px; display: block; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+
+<div class="container">
+    <div id="view-list" class="view active">
+        <div class="header-box">
+            <h2 id="list-title">TV Shows</h2>
+            <button class="btn-small btn-import" onclick="document.getElementById('importFile').click()">Import</button>
+            <button class="btn-small btn-cancel-small" onclick="exportData()">Backup</button>
+            <button class="btn-small btn-add-small" onclick="showView('view-input')">+ Add</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(this)">
+        </div>
+        <div id="records-container"></div>
+    </div>
+
+
+    <div id="view-input" class="view">
+        <div class="header-box">
+            <h2>New Show</h2>
+            <button class="btn-small btn-cancel-small" onclick="showView('view-list')">Cancel</button>
+            <button class="btn-small btn-save-small" onclick="addEntry()">Save</button>
+        </div>
+        <div class="input-area">
+            <label class="label-hint">Series Title</label>
+            <input type="text" id="in-series">
+            
+            <label class="label-hint">Streamer</label>
+            <select id="in-streamer" onchange="handleNewStreamer(this)">
+                <option value="">Select Streamer...</option>
+                <option value="Netflix">Netflix</option>
+                <option value="Prime">Prime</option>
+                <option value="Peacock">Peacock</option>
+                <option value="Paramount+">Paramount+</option>
+                <option value="Hulu">Hulu</option>
+                <option value="Disney+">Disney+</option>
+                <option value="Apple">Apple</option>
+                <option value="Max">Max</option>
+                <option value="ADD_NEW" style="font-weight: bold; color: var(--primary);">+ Add New Streamer</option>
+            </select>
+
+
+            <label class="label-hint">Location</label>
+            <input type="text" id="in-location" placeholder="e.g. Hammond">
+
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label class="label-hint">Seasons</label>
+                    <input type="number" id="in-seasons" inputmode="numeric">
+                </div>
+                <div>
+                    <label class="label-hint">Episodes</label>
+                    <input type="number" id="in-episodes" inputmode="numeric">
+                </div>
+            </div>
+
+
+            <label class="label-hint">Comments</label>
+            <textarea id="in-comments" rows="3"></textarea>
+        </div>
+    </div>
+
+
+    <div id="view-edit" class="view">
+        <div class="header-box">
+            <h2>Edit Show</h2>
+            <button class="btn-small btn-delete-small" onclick="deleteEntry()">Delete</button>
+            <button class="btn-small btn-save-small" onclick="updateEntry()">Update</button>
+        </div>
+        <div class="input-area">
+            <input type="hidden" id="edit-id">
+            
+            <label class="label-hint">Series Title</label>
+            <input type="text" id="edit-series">
+            
+            <label class="label-hint">Streamer</label>
+            <select id="edit-streamer" onchange="handleNewStreamer(this)">
+                <option value="">Select Streamer...</option>
+                <option value="Netflix">Netflix</option>
+                <option value="Prime">Prime</option>
+                <option value="Peacock">Peacock</option>
+                <option value="Paramount+">Paramount+</option>
+                <option value="Hulu">Hulu</option>
+                <option value="Disney+">Disney+</option>
+                <option value="Apple">Apple</option>
+                <option value="Max">Max</option>
+                <option value="ADD_NEW" style="font-weight: bold; color: var(--primary);">+ Add New Streamer</option>
+            </select>
+
+
+            <label class="label-hint">Location</label>
+            <input type="text" id="edit-location">
+
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label class="label-hint">Seasons</label>
+                    <input type="number" id="edit-seasons" inputmode="numeric">
+                </div>
+                <div>
+                    <label class="label-hint">Episodes</label>
+                    <input type="number" id="edit-episodes" inputmode="numeric">
+                </div>
+            </div>
+
+
+            <label class="label-hint">Comments</label>
+            <textarea id="edit-comments" rows="3"></textarea>
+
+
+            <button class="btn-small btn-cancel-small" style="width:100%; margin-top:20px; padding:15px" onclick="showView('view-list')">Back to List</button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    // 1. DEXIE DATABASE SETUP
+    const db = new Dexie("TVTrackerDB");
+    db.version(1).stores({
+        tvshows: '++id, series, streamer, location' 
+    });
+
+
+    let currentData = [];
+
+
+    // 2. DATA HANDLERS
+    async function fetchData() {
+        // Request persistent storage to survive cache clear
+        if (navigator.storage && navigator.storage.persist) {
+            await navigator.storage.persist();
+        }
+
+
+        try {
+            currentData = await db.tvshows.orderBy('series').toArray();
+            renderList();
+        } catch (err) {
+            console.error("Dexie Error:", err);
+        }
+    }
+
+
+    function renderList() {
+        const container = document.getElementById('records-container');
+        container.innerHTML = currentData.length ? '' : '<p style="text-align:center; padding: 40px; color: #999;">No shows found.<br>Use "Import" to load a backup.</p>';
+        
+        currentData.forEach((item) => {
+            const div = document.createElement('div');
+            div.className = 'record-item';
+            div.innerHTML = `<span>${item.series || 'Untitled'}</span>`;
+            div.onclick = () => openEditView(item);
+            container.appendChild(div);
+        });
+    }
+
+
+    async function addEntry() {
+        const payload = {
+            series: document.getElementById('in-series').value.trim(),
+            streamer: document.getElementById('in-streamer').value,
+            location: document.getElementById('in-location').value.trim(),
+            seasons: parseInt(document.getElementById('in-seasons').value) || 0,
+            episodes: parseInt(document.getElementById('in-episodes').value) || 0,
+            comments: document.getElementById('in-comments').value.trim()
+        };
+
+
+        if (!payload.series) return alert("Title required");
+        
+        await db.tvshows.add(payload);
+        clearInputs();
+        await fetchData();
+        showView('view-list');
+    }
+
+
+    function openEditView(item) {
+        document.getElementById('edit-id').value = item.id;
+        document.getElementById('edit-series').value = item.series || '';
+        ensureStreamerExists('edit-streamer', item.streamer);
+        document.getElementById('edit-location').value = item.location || '';
+        document.getElementById('edit-seasons').value = item.seasons || '';
+        document.getElementById('edit-episodes').value = item.episodes || '';
+        document.getElementById('edit-comments').value = item.comments || '';
+        showView('view-edit');
+    }
+
+
+    async function updateEntry() {
+        const id = parseInt(document.getElementById('edit-id').value);
+        const payload = {
+            series: document.getElementById('edit-series').value.trim(),
+            streamer: document.getElementById('edit-streamer').value,
+            location: document.getElementById('edit-location').value.trim(),
+            seasons: parseInt(document.getElementById('edit-seasons').value) || 0,
+            episodes: parseInt(document.getElementById('edit-episodes').value) || 0,
+            comments: document.getElementById('edit-comments').value.trim()
+        };
+
+
+        await db.tvshows.update(id, payload);
+        await fetchData();
+        showView('view-list');
+    }
+
+
+    async function deleteEntry() {
+        const id = parseInt(document.getElementById('edit-id').value);
+        if(confirm("Delete this show?")) {
+            await db.tvshows.delete(id);
+            await fetchData();
+            showView('view-list');
+        }
+    }
+
+
+    // 3. UTILITIES
+    function showView(viewId) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+    }
+
+
+    function handleNewStreamer(selectElement) {
+        if (selectElement.value === "ADD_NEW") {
+            const newName = prompt("New streamer name:");
+            if (newName && newName.trim()) {
+                const clean = newName.trim();
+                ['in-streamer', 'edit-streamer'].forEach(id => {
+                    const el = document.getElementById(id);
+                    const opt = new Option(clean, clean);
+                    el.insertBefore(opt, el.lastElementChild);
+                });
+                selectElement.value = clean;
+            } else {
+                selectElement.value = "";
+            }
+        }
+    }
+
+
+    function ensureStreamerExists(selectId, value) {
+        const select = document.getElementById(selectId);
+        if (!value) { select.value = ""; return; }
+        let exists = Array.from(select.options).some(opt => opt.value === value);
+        if (!exists) {
+            select.insertBefore(new Option(value, value), select.lastElementChild);
+        }
+        select.value = value;
+    }
+
+
+    function clearInputs() {
+        ['in-series', 'in-streamer', 'in-seasons', 'in-episodes', 'in-comments', 'in-location'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+    }
+
+
+    // 4. BACKUP & MERGE LOGIC
+    async function exportData() {
+        const data = await db.tvshows.toArray();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tv_tracker_backup.json`;
+        a.click();
+    }
+
+
+    async function importData(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        
+        reader.onload = async (e) => {
+            try {
+                const importedShows = JSON.parse(e.target.result);
+                let addedCount = 0;
+                let skippedCount = 0;
+
+
+                await db.transaction('rw', db.tvshows, async () => {
+                    for (const show of importedShows) {
+                        const exists = await db.tvshows
+                            .where('series')
+                            .equals(show.series)
+                            .first();
+
+
+                        if (!exists) {
+                            const { id, ...cleanShow } = show; 
+                            await db.tvshows.add(cleanShow);
+                            addedCount++;
+                        } else {
+                            skippedCount++;
+                        }
+                    }
+                });
+
+
+                alert(`Import Complete!\nAdded: ${addedCount} new shows\nSkipped: ${skippedCount} duplicates`);
+                fetchData();
+            } catch (err) {
+                alert("Import failed: Check file format.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+
+    // START
+    fetchData();
+</script>
+
+
+</body>
+</html>
