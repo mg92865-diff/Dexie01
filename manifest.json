@@ -1,3 +1,4 @@
+
 {
   "short_name": "TV",
   "name": "TV Show Manager",
@@ -7,17 +8,16 @@
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
-
     },
     {
       "src": "icon-512.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
-
     }
   ],
-  "start_url": "/mg92865-diff.github.io/index.html",
+  "start_url": "./index.html",
+  "scope": "./",
   "background_color": "#f8f9fa",
   "theme_color": "#2c3e50",
   "display": "standalone",
