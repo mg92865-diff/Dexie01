@@ -1,22 +1,40 @@
-﻿const CACHE_NAME = 'records-cache-v2';
+
+// Bumped cache name to clear out the old service worker cache
+const CACHE_NAME = 'records-cache-v4'; 
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  'https://unpkg.com/dexie@4.0.4/dist/dexie.js'
+  'https://unpkg.com/dexie@4.0.4/dist/dexie.js' // EXACT MATCH
 ];
-
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS);
+    }).then(() => {
+      return self.skipWaiting(); 
     })
   );
 });
 
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(() => {
+      return self.clients.claim(); 
+    })
+  );
+});
 
 self.addEventListener('fetch', (e) => {
   e.respondWith(
